@@ -1,0 +1,98 @@
+# --------------------------------------------------------------
+# LIBRARIES (not all below are needed, but you might need them for 
+# text analysis and charting)
+# --------------------------------------------------------------
+
+library(tidyverse)
+library(readxl)
+library(qdap)
+library(tm) # nlp
+library(tidytext)
+library(dplyr)
+library(textmineR)
+library(topicmodels)
+library(ggplot2)
+
+# --------------------------------------------------------------
+# DATA  - This is in format of two columns 'ProjectReference' and 'ProjectAbstract'
+# (although you don't really need ProjectReference, code below removes it but just in case)
+# --------------------------------------------------------------
+
+# set to source script directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# read in csv
+#Grants = read_csv("netZeroGrants.csv") #UKRI
+Grants = read_csv("NetZeroDimensions.csv") #Dimensions
+
+# save copy of dataframe
+GrantsClean = Grants
+
+# --------------------------------------------------------------
+# CLEAN DATA 
+# --------------------------------------------------------------
+
+#remove all non graphical characters
+GrantsClean$ProjectAbstract = str_replace_all(GrantsClean$ProjectAbstract,"[^[:graph:]]", " ") 
+
+# convert abstract to lower case
+GrantsClean$ProjectAbstract = tolower(GrantsClean$ProjectAbstract)
+
+# remove punctuation
+GrantsClean$ProjectAbstract = removePunctuation(GrantsClean$ProjectAbstract)
+
+# remove numbers
+GrantsClean$ProjectAbstract = removeNumbers(GrantsClean$ProjectAbstract)
+
+# remove white space
+GrantsClean$ProjectAbstract = stripWhitespace(GrantsClean$ProjectAbstract)
+
+# remove all text within brackets e.g. “It’s (so) cool” becomes “It’s cool”)
+GrantsClean$ProjectAbstract = bracketX(GrantsClean$ProjectAbstract)
+
+# Replace abbreviations
+GrantsClean$ProjectAbstract = replace_abbreviation(GrantsClean$ProjectAbstract)
+
+# Replace contractions
+GrantsClean$ProjectAbstract = replace_contraction(GrantsClean$ProjectAbstract)
+
+# Replace symbols
+GrantsClean$ProjectAbstract = replace_symbol(GrantsClean$ProjectAbstract)
+
+# add stopwords to stopword dictionary
+all_stops = c("research", "university", "uk", "will", "can", "also", "data", "NA", "abstract", "application",
+              "using", "evaluation", "nsfs", stopwords("en"))
+
+# remove list of stopwords
+GrantsClean$ProjectAbstract = removeWords(GrantsClean$ProjectAbstract, all_stops)
+
+# drop NA values
+GrantsClean = GrantsClean %>% drop_na()
+
+# remove rows where there is less than 50 characters in it
+GrantsClean = GrantsClean[(which(nchar(GrantsClean$ProjectAbstract) > 75)),]
+
+# remove duplicated rows, I am not interested in the project reference column so that can go too
+GrantsClean = GrantsClean %>% select(-ProjectReference) %>% distinct()
+
+
+# --------------------------------------------------------------
+# NGRAM GROUPS - Creates top 30 for 1-4 gram word/s
+# --------------------------------------------------------------
+
+# create dataframe with count of ngrams (1) and then sort and then select top 30
+grants1gram = GrantsClean %>% unnest_tokens(bigram, ProjectAbstract, token = "ngrams", n = 1) %>% 
+  count(bigram, sort = TRUE) %>% top_n(30, n)
+
+# create dataframe with count of ngrams (2) and then sort and then select top 30
+grants2gram = GrantsClean %>% unnest_tokens(bigram, ProjectAbstract, token = "ngrams", n = 2) %>% 
+  count(bigram, sort = TRUE) %>% top_n(30, n)
+
+# create dataframe with count of ngrams (3) and then sort and then select top 30
+grants3gram = GrantsClean %>% unnest_tokens(bigram, ProjectAbstract, token = "ngrams", n = 3) %>% 
+  count(bigram, sort = TRUE) %>% top_n(30, n)
+
+# create dataframe with count of ngrams (4) and then sort and then select top 18 (too many if include more)
+grants4gram = GrantsClean %>% unnest_tokens(bigram, ProjectAbstract, token = "ngrams", n = 4) %>% 
+  count(bigram, sort = TRUE) %>% top_n(18, n)
+
